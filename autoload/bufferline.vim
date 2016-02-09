@@ -15,7 +15,14 @@ function! s:generate_names()
       if getbufvar(i, '&mod')
         let modified = g:bufferline_modified
       endif
-      let fname = fnamemodify(bufname(i), g:bufferline_fname_mod)
+      let bname = bufname(i)
+      let btype = getbufvar(i, '&buftype')
+      let fname = '[No Name]'
+      if len(bname) == 0 && len(btype) != 0
+        let fname = '['.btype.']'
+      elseif len(bname) > 0
+        let fname = fnamemodify(bname, g:bufferline_fname_mod)
+      endif
       if g:bufferline_pathshorten != 0
         let fname = pathshorten(fname)
       endif
