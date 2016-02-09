@@ -11,7 +11,7 @@ function! s:generate_names()
   let current_buffer = bufnr('%')
   while i <= last_buffer
     if bufexists(i) && buflisted(i)
-      let modified = ' '
+      let modified = ''
       if getbufvar(i, '&mod')
         let modified = g:bufferline_modified
       endif
