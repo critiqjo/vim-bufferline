@@ -32,6 +32,11 @@ values):
   let g:bufferline_modified = '+'
 <
 
+* the symbol to denote that a buffer is unlisted/skipped when it's focused
+>
+  let g:bufferline_unlisted = '!'
+<
+
 * denotes whether buffer numbers should be displayed
 >
   let g:bufferline_show_bufnr = 1

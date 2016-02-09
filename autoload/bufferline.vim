@@ -4,53 +4,63 @@ let s:updatetime = &updatetime
 " keep track of scrollinf window start
 let s:window_start = 0
 
+function! s:get_name(bufnr)
+  let bname = bufname(a:bufnr)
+  let btype = getbufvar(a:bufnr, '&buftype')
+  let name = '[No Name]'
+  if len(bname) == 0 && len(btype) != 0
+    let name = '['.btype.']'
+  elseif len(bname) > 0
+    let name = fnamemodify(bname, g:bufferline_fname_mod)
+  endif
+  if g:bufferline_pathshorten != 0
+    let name = pathshorten(name)
+  endif
+  let name = substitute(name, "%", "%%", "g")
+  return name
+endfunction
+
+function! s:format_name(bufnr, name, unlisted)
+  let fname = ''
+  if g:bufferline_show_bufnr != 0
+    let fname = a:bufnr . ':'
+  endif
+  let fname .= a:name . (getbufvar(a:bufnr, '&mod') ? g:bufferline_modified : '')
+  let fname .= a:unlisted ? g:bufferline_unlisted : ''
+  if bufnr('%') == a:bufnr
+    let fname = g:bufferline_active_buffer_left . fname . g:bufferline_active_buffer_right
+  else
+    let fname = g:bufferline_separator . fname . g:bufferline_separator
+  endif
+  return fname
+endfunction
+
 function! s:generate_names()
   let names = []
   let i = 1
   let last_buffer = bufnr('$')
   let current_buffer = bufnr('%')
+
   while i <= last_buffer
-    if bufexists(i) && buflisted(i)
-      let modified = ''
-      if getbufvar(i, '&mod')
-        let modified = g:bufferline_modified
-      endif
-      let bname = bufname(i)
-      let btype = getbufvar(i, '&buftype')
-      let fname = '[No Name]'
-      if len(bname) == 0 && len(btype) != 0
-        let fname = '['.btype.']'
-      elseif len(bname) > 0
-        let fname = fnamemodify(bname, g:bufferline_fname_mod)
-      endif
-      if g:bufferline_pathshorten != 0
-        let fname = pathshorten(fname)
-      endif
-      let fname = substitute(fname, "%", "%%", "g")
+    let is_listed = bufexists(i) && buflisted(i)
+    if is_listed || i == current_buffer
+      let name = s:get_name(i)
 
       let skip = 0
       for ex in g:bufferline_excludes
-        if match(fname, ex) > -1
+        if match(name, ex) > -1
           let skip = 1
           break
         endif
       endfor
 
-      if !skip
-        let name = ''
-        if g:bufferline_show_bufnr != 0 && g:bufferline_status_info.count >= g:bufferline_show_bufnr
-          let name =  i . ':'
-        endif
-        let name .= fname . modified
-
-        if current_buffer == i
-          let name = g:bufferline_active_buffer_left . name . g:bufferline_active_buffer_right
-          let g:bufferline_status_info.current = name
-        else
-          let name = g:bufferline_separator . name . g:bufferline_separator
-        endif
-
-        call add(names, [i, name])
+      if i == current_buffer
+        let fname = s:format_name(i, name, !is_listed || skip)
+        let g:bufferline_status_info.current = fname
+        call add(names, [i, fname])
+      elseif !skip
+        let fname = s:format_name(i, name, 0)
+        call add(names, [i, fname])
       endif
     endif
     let i += 1
@@ -66,12 +76,6 @@ function! s:generate_names()
 endfunction
 
 function! bufferline#get_echo_string()
-  " check for special cases like help files
-  let current = bufnr('%')
-  if !bufexists(current) || !buflisted(current)
-    return bufname('%')
-  endif
-
   let names = s:generate_names()
   let line = ''
   for val in names
