@@ -14,7 +14,7 @@ values):
 
 * denotes whether bufferline should automatically echo to the command bar
 >
-  let g:bufferline_echo = 1
+  let g:bufferline_echo = 0
 <
 
 * the separator used on the left side of a buffer
@@ -67,29 +67,6 @@ values):
   let g:bufferline_fname_mod = ':t'
 <
 
-* denotes the highlight group for inactive buffers when used in the
-  |statusline|
->
-  let g:bufferline_inactive_highlight = 'StatusLineNC'
-<
-
-* denotes the highlight group for the active buffer when used in the
-  |statusline|
->
-  let g:bufferline_active_highlight = 'StatusLine'
-<
-
-* denotes whether the active highlight should be used when there is only one
-  buffer.
->
-  let g:bufferline_solo_highlight = 0
-<
-
-* denotes any exclude patterns.
->
-  let g:bufferline_excludes = [] "see source for defaults
-<
-
 * denotes whether paths in buffer names should be |pathshorten()|-ed.
 >
   let g:bufferline_pathshorten = 0
@@ -99,16 +76,17 @@ values):
 STATUSLINE INTEGRATION                               *bufferline-statusline*
 
 >
-  let g:bufferline_echo = 0
-  autocmd VimEnter *
+  autocmd BufEnter *
     \ let &statusline='%{bufferline#refresh_status()}'
-      \ .bufferline#get_status_string()
+      \ .bufferline#get_status_string('StatusLine', 'StatusLineNC')
 <
 
 The function refresh_status() returns an empty string and only exists to
-populate some global variables.  Since it is inside an %{} block, the
+populate some global variables. Since it is inside an %{} block, the
 variables will get updated whenever the statusline needs to be drawn.
 get_status_string() creates a string which references these variables.
+|StatusLine| and |StatusLineNC| are highlights used for focused and unfocused
+buffers respectively
 
 ==============================================================================
 CONTRIBUTIONS                                     *bufferline-contributions*

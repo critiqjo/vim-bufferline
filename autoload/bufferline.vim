@@ -1,8 +1,8 @@
 " keep track of vimrc setting
 let s:updatetime = &updatetime
 
-" keep track of scrollinf window start
-let s:window_start = 0
+" keep track of scroll info start
+let s:scroll_start = 0
 
 function! s:get_name(bufnr)
   let bname = bufname(a:bufnr)
@@ -42,21 +42,12 @@ function! s:generate_names()
   let current_buffer = bufnr('%')
 
   while i <= last_buffer
-    let is_listed = bufexists(i) && buflisted(i)
-    if is_listed || i == current_buffer
+    let skip = !bufexists(i) || !buflisted(i) || len(getbufvar(i, "&buftype"))
+    if !skip || i == current_buffer
       let name = s:get_name(i)
 
-      let skip = 0
-      for ex in g:bufferline_excludes
-        if match(name, ex) > -1
-          let skip = 1
-          break
-        endif
-      endfor
-
       if i == current_buffer
-        let fname = s:format_name(i, name, !is_listed || skip)
-        let g:bufferline_status_info.current = fname
+        let fname = s:format_name(i, name, skip)
         call add(names, [i, fname])
       elseif !skip
         let fname = s:format_name(i, name, 0)
@@ -76,43 +67,74 @@ function! s:generate_names()
 endfunction
 
 function! bufferline#get_echo_string()
-  let names = s:generate_names()
-  let line = ''
-  for val in names
-    let line .= val[1]
-  endfor
+  return g:bufferline_status_info.before
+     \ . g:bufferline_status_info.current
+     \ . g:bufferline_status_info.after
+endfunction
 
-  let index = match(line, '\V'.g:bufferline_status_info.current)
-  let g:bufferline_status_info.count = len(names)
-  let g:bufferline_status_info.before = strpart(line, 0, index)
-  let g:bufferline_status_info.after = strpart(line, index + len(g:bufferline_status_info.current))
-  return line
+function! bufferline#refresh_status()
+  let g:bufferline_status_info.before = ''
+  let g:bufferline_status_info.current = ''
+  let g:bufferline_status_info.after = ''
+  let names = s:generate_names()
+  let curbuf = bufnr('%')
+  let is_before = 1
+  for val in names
+    if is_before
+      if curbuf != val[0]
+        let g:bufferline_status_info.before .= val[1]
+      else
+        let g:bufferline_status_info.current = val[1]
+        let is_before = 0
+      endif
+    else
+      let g:bufferline_status_info.after .= val[1]
+    endif
+  endfor
+  return ''
+endfunction
+
+function! bufferline#trim_status_info(width)
+  let line = bufferline#get_echo_string()
+  if len(line) < a:width
+    return
+  endif
+  let before = g:bufferline_status_info.before
+  let current = g:bufferline_status_info.current
+  let after = g:bufferline_status_info.after
+  let beg_i = len(before)
+  let end_i = beg_i + len(current)
+  let scr_i = s:scroll_start
+  if beg_i < scr_i
+    let scr_i = beg_i
+  endif
+  if end_i > (scr_i + a:width)
+    let scr_i = end_i - a:width + 1
+  endif
+  if len(line[scr_i :]) < a:width
+    let scr_i = len(line) - a:width + 1
+  endif
+  let g:bufferline_status_info.before = before[scr_i :]
+  let beg_i__scr_i = beg_i - scr_i
+  if beg_i__scr_i < 0
+    let g:bufferline_status_info.current = current[-beg_i__scr_i :]
+  endif
+  let width__end_i = a:width - len(g:bufferline_status_info.before) - len(g:bufferline_status_info.current) - 1
+  if width__end_i == -1
+    let g:bufferline_status_info.after = '' " VimL sucks!
+  else
+    let g:bufferline_status_info.after = after[: width__end_i]
+  endif
+  let s:scroll_start = scr_i
 endfunction
 
 function! s:echo()
-  if &filetype ==# 'unite'
-    return
-  endif
-
-  let line = bufferline#get_echo_string()
+  call bufferline#refresh_status()
 
   " 12 is magical and is the threshold for when it doesn't wrap text anymore
-  let width = &columns - 12
-  if g:bufferline_rotate == 2
-    let current_buffer_start = stridx(line, g:bufferline_active_buffer_left)
-    let current_buffer_end = stridx(line, g:bufferline_active_buffer_right)
-    if current_buffer_start < s:window_start
-      let s:window_start = current_buffer_start
-    endif
-    if current_buffer_end > (s:window_start + width)
-      let s:window_start = current_buffer_end - width + 1
-    endif
-    let line = strpart(line, s:window_start, width)
-  else
-    let line = strpart(line, 0, width)
-  endif
+  call bufferline#trim_status_info(&columns - 12)
 
-  echo line
+  echo bufferline#get_echo_string()
 
   if &updatetime != s:updatetime
     let &updatetime = s:updatetime
@@ -124,7 +146,7 @@ function! s:cursorhold_callback()
   autocmd! bufferline CursorHold
 endfunction
 
-function! s:refresh(updatetime)
+function! s:refresh_au(updatetime)
   let &updatetime = a:updatetime
   autocmd bufferline CursorHold * call s:cursorhold_callback()
 endfunction
@@ -132,10 +154,18 @@ endfunction
 function! bufferline#init_echo()
   augroup bufferline
     au!
-
     " events which output a message which should be immediately overwritten
-    autocmd BufWinEnter,WinEnter,InsertLeave,VimResized * call s:refresh(1)
+    autocmd BufWinEnter,WinEnter,InsertLeave,VimResized * call s:refresh_au(1)
   augroup END
-
   autocmd CursorHold * call s:echo()
+endfunction
+
+function! bufferline#get_status_string(active_highlight, inactive_highlight)
+  return
+        \ '%#'.a:inactive_highlight.'#'
+        \.'%{g:bufferline_status_info.before}'
+        \.'%#'.a:active_highlight.'#'
+        \.' %{g:bufferline_status_info.current} '
+        \.'%#'.a:inactive_highlight.'#'
+        \.'%{g:bufferline_status_info.after}'
 endfunction
